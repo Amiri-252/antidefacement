@@ -39,10 +39,6 @@ const AppContent = () => {
     setActivePage('dashboard');
   };
 
-  const handleRefresh = () => {
-    loadDashboardData();
-  };
-
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':

@@ -96,7 +96,7 @@ def init_auth_database(db_path: str = "antidefacement.db"):
         admin_password = get_password_hash("admin123")
         cursor.execute(
             "INSERT INTO users (username, email, full_name, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
-            ("admin", "admin@antidefacement.local", "System Administrator", admin_password, "admin")
+            ("admin", "admin@example.com", "System Administrator", admin_password, "admin")
         )
     
     conn.commit()
