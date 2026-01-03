@@ -1,6 +1,7 @@
 // frontend/src/context/DashboardContext.js
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '../services/api';
+import websocketService from '../services/websocket';
 
 const DashboardContext = createContext();
 
@@ -24,6 +25,35 @@ export const DashboardProvider = ({ children }) => {
   const [activityData, setActivityData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    websocketService.connect();
+
+    // Subscribe to real-time stats updates
+    const unsubscribeStats = websocketService.on('stats_update', (data) => {
+      console.log('Received real-time stats:', data);
+      setStats({
+        totalServers: data.totalServers,
+        activeMonitors: data.activeMonitors,
+        alertsToday: data.alertsToday,
+        restoredFiles: data.restoredFiles,
+      });
+    });
+
+    // Subscribe to activity updates
+    const unsubscribeActivity = websocketService.on('activity_update', (data) => {
+      console.log('Received activity update:', data);
+      // Update activity data if needed
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribeStats();
+      unsubscribeActivity();
+      websocketService.disconnect();
+    };
+  }, []);
 
   const loadDashboardData = useCallback(async () => {
     setLoading(true);

@@ -1,5 +1,6 @@
 // frontend/src/App.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DashboardProvider, useDashboard } from './context/DashboardContext';
 import LoginPage from './pages/LoginPage';
@@ -11,13 +12,22 @@ import ActivityPage from './pages/ActivityPage';
 import AddServerPage from './pages/AddServerPage';
 import AlertsPage from './pages/AlertsPage';
 import FilesPage from './pages/FilesPage';
+import BackupsPage from './pages/BackupsPage';
+import AlertConfigPage from './pages/AlertConfigPage';
+import SettingsPage from './pages/SettingsPage';
+import PermissionsPage from './pages/PermissionsPage';
 
+// Protected route wrapper
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated() ? children : <Navigate to="/login" replace />;
+};
 
-
-const AppContent = () => {
-  const [activePage, setActivePage] = useState('dashboard');
+const AppLayout = () => {
   const { loadDashboardData, loading, error } = useDashboard();
   const { isAuthenticated, logout, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (isAuthenticated()) {
@@ -25,46 +35,21 @@ const AppContent = () => {
     }
   }, [isAuthenticated, loadDashboardData]);
 
-  // Show login page if not authenticated
-  if (!isAuthenticated()) {
-    return <LoginPage />;
-  }
-
   const handleRefresh = () => {
     loadDashboardData();
   };
 
   const handleLogout = () => {
     logout();
-    setActivePage('dashboard');
+    navigate('/login');
   };
 
-  const renderPage = () => {
-    switch (activePage) {
-      case 'dashboard':
-        return <DashboardPage />;
-      case 'servers':
-        return <ServersPage onNavigate={setActivePage} />;
-      case 'activity':
-        return <ActivityPage />;
-      case 'add-server':
-        return <AddServerPage onNavigate={setActivePage} />;
-      case 'permissions':
-        return <div className="bg-white p-6 rounded-xl">Permissions Page - Coming Soon</div>;
-      case 'backups':
-        return <div className="bg-white p-6 rounded-xl">Backups Page - Coming Soon</div>;
-      case 'alert-config':
-        return <div className="bg-white p-6 rounded-xl">Alert Configuration - Coming Soon</div>;
-      case 'settings':
-        return <div className="bg-white p-6 rounded-xl">General Settings - Coming Soon</div>;
-      case 'alerts':
-        return <AlertsPage />;
-      case 'files':
-        return <FilesPage />;
-      default:
-        return <DashboardPage />;
-    }
+  const handlePageChange = (page) => {
+    navigate(`/${page}`);
   };
+
+  // Get active page from location
+  const activePage = location.pathname.substring(1) || 'dashboard';
 
   if (error) {
     return (
@@ -85,7 +70,7 @@ const AppContent = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <Sidebar activePage={activePage} onPageChange={setActivePage} />
+      <Sidebar activePage={activePage} onPageChange={handlePageChange} />
       <main className="ml-64 flex-1">
         <Topbar
           title={activePage}
@@ -103,7 +88,19 @@ const AppContent = () => {
               </div>
             </div>
           ) : (
-            renderPage()
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/servers" element={<ServersPage onNavigate={handlePageChange} />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/add-server" element={<AddServerPage onNavigate={handlePageChange} />} />
+              <Route path="/permissions" element={<PermissionsPage />} />
+              <Route path="/backups" element={<BackupsPage />} />
+              <Route path="/alert-config" element={<AlertConfigPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/files" element={<FilesPage />} />
+            </Routes>
           )}
         </div>
       </main>
@@ -113,11 +110,23 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <AuthProvider>
-      <DashboardProvider>
-        <AppContent />
-      </DashboardProvider>
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <DashboardProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </DashboardProvider>
+      </AuthProvider>
+    </Router>
   );
 };
 

@@ -19,23 +19,43 @@ A comprehensive web-based monitoring system for detecting and preventing file sy
 - Automatic backup and restore
 - Multi-server management
 - Alert system with multiple severity levels
+- Real-time WebSocket updates for live charts
+- Activity logging to database
 
 ### 💻 Modern UI
 - Responsive React-based dashboard
-- Real-time statistics and charts
+- **Real-time statistics and charts** via WebSocket
+- **URL-based routing** with React Router (no redirect on refresh)
 - Clean and intuitive interface
 - Role-based UI elements
+- Fully functional pages:
+  - Dashboard with live updates
+  - Server management
+  - Activity monitoring
+  - **Backup management** (create, restore, view)
+  - **Alert configuration** (email, Telegram)
+  - **Permissions management** (user roles)
+  - **General settings** (monitoring, Redis)
+
+### 🗄️ Database
+- **Flexible database support**: SQLite (dev) or MySQL (production)
+- **SQLAlchemy ORM**: Clean database operations
+- **Activity logging**: All events stored in centralized database
+- **Easy migration**: Tools and guides for moving to MySQL
 
 ## Architecture
 
 ### Backend (FastAPI)
 - RESTful API with JWT authentication
-- SQLite database for data persistence
+- SQLite or MySQL database support for data persistence
+- WebSocket support for real-time updates
 - RBAC middleware for endpoint protection
 - Modular architecture for easy extension
 
 ### Frontend (React)
+- React Router for URL-based navigation
 - Context-based state management
+- Real-time updates via WebSocket
 - Secure token storage
 - Protected routes
 - Role-based component rendering
@@ -46,6 +66,7 @@ A comprehensive web-based monitoring system for detecting and preventing file sy
 - Python 3.8+
 - Node.js 18+
 - npm 9+
+- MySQL 5.7+ (optional, recommended for production)
 
 ### Backend Setup
 
@@ -62,8 +83,12 @@ pip install -r requirements_complete.txt
 3. Create environment configuration:
 ```bash
 cp .env.example .env
-# Edit .env and set your SECRET_KEY
+# Edit .env and configure:
+# - SECRET_KEY: Generate a strong random key
+# - DATABASE_URL: Choose SQLite (default) or MySQL
 ```
+
+**For MySQL setup**, see [MYSQL_SETUP.md](MYSQL_SETUP.md) for detailed instructions.
 
 4. Start the API server:
 ```bash
@@ -72,6 +97,7 @@ uvicorn api:app --reload --host 0.0.0.0 --port 8000
 
 The API will be available at `http://localhost:8000`
 API documentation: `http://localhost:8000/docs`
+WebSocket endpoint: `ws://localhost:8000/ws`
 
 ### Frontend Setup
 
