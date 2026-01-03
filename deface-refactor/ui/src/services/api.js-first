@@ -1,0 +1,113 @@
+// frontend/src/services/api.js
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+class ApiService {
+  async request(endpoint, options = {}) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API Request Failed:', error);
+      throw error;
+    }
+  }
+
+  // Dashboard
+  getDashboardStats() {
+    return this.request('/dashboard/stats');
+  }
+
+  // Servers
+  getServers() {
+    return this.request('/servers');
+  }
+
+  addServer(serverData) {
+    return this.request('/servers', {
+      method: 'POST',
+      body: JSON.stringify(serverData),
+    });
+  }
+
+  deleteServer(serverId) {
+    return this.request(`/servers/${serverId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Activity
+  getActivity(limit = 50) {
+    return this.request(`/activity?limit=${limit}`);
+  }
+
+  // Alerts
+  getAlerts(filter = 'all') {
+    return this.request(`/alerts?filter=${filter}`);
+  }
+
+  // File Changes
+  getFileChanges(serverId = null) {
+    const endpoint = serverId ? `/files?server_id=${serverId}` : '/files';
+    return this.request(endpoint);
+  }
+
+  // Permission Changes
+  getPermissionChanges(serverId = null) {
+    const endpoint = serverId ? `/permissions?server_id=${serverId}` : '/permissions';
+    return this.request(endpoint);
+  }
+
+  // Backups
+  getBackups() {
+    return this.request('/backups');
+  }
+
+  createBackup(serverId) {
+    return this.request('/backups', {
+      method: 'POST',
+      body: JSON.stringify({ server_id: serverId }),
+    });
+  }
+
+  restoreBackup(backupId) {
+    return this.request(`/backups/${backupId}/restore`, {
+      method: 'POST',
+    });
+  }
+
+  // Settings
+  getAlertConfig() {
+    return this.request('/settings/alerts');
+  }
+
+  updateAlertConfig(config) {
+    return this.request('/settings/alerts', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  getGeneralSettings() {
+    return this.request('/settings/general');
+  }
+
+  updateGeneralSettings(settings) {
+    return this.request('/settings/general', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+}
+
+export default new ApiService();
