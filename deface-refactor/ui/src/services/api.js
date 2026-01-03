@@ -1,6 +1,6 @@
 // frontend/src/services/api.js
-const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-const USE_MOCK_DATA = true; // Set to false when backend is ready
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const USE_MOCK_DATA = false; // Disabled - using real backend
 
 // Mock data for development
 const mockData = {
@@ -75,16 +75,29 @@ class ApiService {
     }
 
     try {
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },
         ...options,
       });
 
+      if (response.status === 401) {
+        // Token expired or invalid - redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+        throw new Error('Authentication required');
+      }
+
       if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `API Error: ${response.statusText}`);
       }
 
       return await response.json();

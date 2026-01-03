@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-FastAPI Backend for Anti-Defacement Dashboard
+FastAPI Backend for Anti-Defacement Dashboard with Authentication
 استفاده: uvicorn api:app --reload --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -13,6 +13,15 @@ import sqlite3
 import json
 import os
 from pathlib import Path
+
+# Import authentication module
+from auth import (
+    User, UserCreate, UserLogin, Token,
+    authenticate_user, create_access_token,
+    get_current_active_user, init_auth_database,
+    require_admin, require_operator, require_viewer,
+    create_user
+)
 
 # Import modules from your existing project
 try:
@@ -24,10 +33,13 @@ except ImportError as e:
 
 app = FastAPI(title="Anti-Defacement API", version="1.0.0")
 
+# Initialize authentication database
+init_auth_database()
+
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # در پروداکشن، دامنه‌های مشخص را اضافه کنید
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -203,12 +215,58 @@ async def root():
     return {
         "message": "Anti-Defacement API",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
+        "status": "online"
     }
+
+# ==================== Authentication Endpoints ====================
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(user_login: UserLogin):
+    """Login endpoint - returns JWT token"""
+    user = authenticate_user(user_login.username, user_login.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role}
+    )
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=User(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            disabled=user.disabled
+        )
+    )
+
+@app.post("/api/auth/register", response_model=User, dependencies=[Depends(require_admin)])
+async def register(user_data: UserCreate):
+    """Register new user (admin only)"""
+    return create_user(user_data)
+
+@app.get("/api/auth/me", response_model=User)
+async def get_me(current_user: User = Depends(get_current_active_user)):
+    """Get current user info"""
+    return current_user
+
+@app.post("/api/auth/logout")
+async def logout(current_user: User = Depends(get_current_active_user)):
+    """Logout endpoint (token invalidation handled on client side)"""
+    return {"message": "Successfully logged out"}
 
 # ========== Dashboard Endpoints ==========
 
-@app.get("/api/dashboard/stats")
+@app.get("/api/dashboard/stats", dependencies=[Depends(require_viewer)])
 async def get_dashboard_stats():
     """Get dashboard statistics"""
     try:
@@ -248,7 +306,7 @@ async def get_dashboard_stats():
 
 # ========== Servers Endpoints ==========
 
-@app.get("/api/servers")
+@app.get("/api/servers", dependencies=[Depends(require_viewer)])
 async def get_servers():
     """Get all servers"""
     try:
@@ -290,7 +348,7 @@ async def get_servers():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/servers")
+@app.post("/api/servers", dependencies=[Depends(require_operator)])
 async def add_server(server: ServerCreate, background_tasks: BackgroundTasks):
     """Add a new server"""
     try:
@@ -314,7 +372,7 @@ async def add_server(server: ServerCreate, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/servers/{server_id}")
+@app.delete("/api/servers/{server_id}", dependencies=[Depends(require_admin)])
 async def delete_server(server_id: int):
     """Delete a server"""
     try:
@@ -323,7 +381,7 @@ async def delete_server(server_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/servers/{server_id}")
+@app.get("/api/servers/{server_id}", dependencies=[Depends(require_viewer)])
 async def get_server(server_id: int):
     """Get server details"""
     try:
@@ -350,7 +408,7 @@ async def get_server(server_id: int):
 
 # ========== Activity Endpoints ==========
 
-@app.get("/api/activity")
+@app.get("/api/activity", dependencies=[Depends(require_viewer)])
 async def get_activity(limit: int = 50):
     """Get recent activity from all servers"""
     try:
@@ -412,7 +470,7 @@ async def get_activity(limit: int = 50):
 
 # ========== Alerts Endpoints ==========
 
-@app.get("/api/alerts")
+@app.get("/api/alerts", dependencies=[Depends(require_viewer)])
 async def get_alerts(filter: str = "all"):
     """Get alerts with optional filtering"""
     try:
@@ -440,7 +498,7 @@ async def get_alerts(filter: str = "all"):
 
 # ========== File Changes Endpoints ==========
 
-@app.get("/api/files")
+@app.get("/api/files", dependencies=[Depends(require_viewer)])
 async def get_file_changes(server_id: Optional[int] = None):
     """Get file changes"""
     try:
@@ -481,7 +539,7 @@ async def get_file_changes(server_id: Optional[int] = None):
 
 # ========== Permission Changes Endpoints ==========
 
-@app.get("/api/permissions")
+@app.get("/api/permissions", dependencies=[Depends(require_viewer)])
 async def get_permission_changes(server_id: Optional[int] = None):
     """Get permission changes"""
     try:
@@ -522,7 +580,7 @@ async def get_permission_changes(server_id: Optional[int] = None):
 
 # ========== Backups Endpoints ==========
 
-@app.get("/api/backups")
+@app.get("/api/backups", dependencies=[Depends(require_viewer)])
 async def get_backups():
     """Get backup information for all servers"""
     try:
@@ -560,7 +618,7 @@ async def get_backups():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/backups")
+@app.post("/api/backups", dependencies=[Depends(require_operator)])
 async def create_backup(server_id: int):
     """Create a new backup for a server"""
     try:
@@ -569,7 +627,7 @@ async def create_backup(server_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/backups/{backup_id}/restore")
+@app.post("/api/backups/{backup_id}/restore", dependencies=[Depends(require_operator)])
 async def restore_backup(backup_id: int):
     """Restore from backup"""
     try:
@@ -580,7 +638,7 @@ async def restore_backup(backup_id: int):
 
 # ========== Settings Endpoints ==========
 
-@app.get("/api/settings/alerts")
+@app.get("/api/settings/alerts", dependencies=[Depends(require_viewer)])
 async def get_alert_config():
     """Get alert configuration"""
     try:
@@ -595,7 +653,7 @@ async def get_alert_config():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/settings/alerts")
+@app.put("/api/settings/alerts", dependencies=[Depends(require_admin)])
 async def update_alert_config(config: AlertConfigUpdate):
     """Update alert configuration"""
     try:
@@ -608,7 +666,7 @@ async def update_alert_config(config: AlertConfigUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/settings/general")
+@app.get("/api/settings/general", dependencies=[Depends(require_viewer)])
 async def get_general_settings():
     """Get general settings"""
     try:
@@ -623,7 +681,7 @@ async def get_general_settings():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/settings/general")
+@app.put("/api/settings/general", dependencies=[Depends(require_admin)])
 async def update_general_settings(settings: GeneralSettingsUpdate):
     """Update general settings"""
     try:

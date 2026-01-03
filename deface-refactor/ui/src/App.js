@@ -1,6 +1,8 @@
 // frontend/src/App.js
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { DashboardProvider, useDashboard } from './context/DashboardContext';
+import LoginPage from './pages/LoginPage';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import DashboardPage from './pages/DashboardPage';
@@ -15,13 +17,26 @@ import FilesPage from './pages/FilesPage';
 const AppContent = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const { loadDashboardData, loading, error } = useDashboard();
+  const { isAuthenticated, logout, user } = useAuth();
 
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    if (isAuthenticated()) {
+      loadDashboardData();
+    }
+  }, [isAuthenticated, loadDashboardData]);
+
+  // Show login page if not authenticated
+  if (!isAuthenticated()) {
+    return <LoginPage />;
+  }
 
   const handleRefresh = () => {
     loadDashboardData();
+  };
+
+  const handleLogout = () => {
+    logout();
+    setActivePage('dashboard');
   };
 
   const renderPage = () => {
@@ -76,6 +91,8 @@ const AppContent = () => {
           title={activePage}
           onRefresh={handleRefresh}
           systemStatus="active"
+          user={user}
+          onLogout={handleLogout}
         />
         <div className="p-8">
           {loading && activePage === 'dashboard' ? (
@@ -96,9 +113,11 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <DashboardProvider>
-      <AppContent />
-    </DashboardProvider>
+    <AuthProvider>
+      <DashboardProvider>
+        <AppContent />
+      </DashboardProvider>
+    </AuthProvider>
   );
 };
 
