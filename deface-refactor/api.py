@@ -4,7 +4,7 @@ FastAPI Backend for Anti-Defacement Dashboard with Authentication
 استفاده: uvicorn api:app --reload --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -13,6 +13,8 @@ import sqlite3
 import json
 import os
 from pathlib import Path
+import asyncio
+import logging
 
 # Import authentication module
 from auth import (
@@ -22,6 +24,13 @@ from auth import (
     require_admin, require_operator, require_viewer,
     create_user
 )
+
+# Import WebSocket manager
+from websocket_manager import get_connection_manager
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import modules from your existing project
 try:
@@ -693,6 +702,104 @@ async def update_general_settings(settings: GeneralSettingsUpdate):
         return {"message": "General settings updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== WebSocket Endpoints ====================
+
+ws_manager = get_connection_manager()
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates"""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive and handle incoming messages
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle subscription requests
+            if message.get("type") == "subscribe":
+                topic = message.get("topic")
+                if topic:
+                    await ws_manager.subscribe(websocket, topic)
+                    await ws_manager.send_personal_message(
+                        {"type": "subscribed", "topic": topic},
+                        websocket
+                    )
+            
+            # Handle unsubscription requests
+            elif message.get("type") == "unsubscribe":
+                topic = message.get("topic")
+                if topic:
+                    await ws_manager.unsubscribe(websocket, topic)
+                    await ws_manager.send_personal_message(
+                        {"type": "unsubscribed", "topic": topic},
+                        websocket
+                    )
+            
+            # Handle ping/pong for keep-alive
+            elif message.get("type") == "ping":
+                await ws_manager.send_personal_message(
+                    {"type": "pong"},
+                    websocket
+                )
+    
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket)
+
+async def broadcast_stats_update():
+    """Background task to broadcast stats updates periodically"""
+    while True:
+        try:
+            # Get current stats
+            total_servers = db_manager.execute_query(
+                "SELECT COUNT(*) FROM servers WHERE status = 'active'", 
+                fetch=True
+            )[0][0]
+            
+            active_monitors = total_servers * 3 if total_servers > 0 else 0
+            
+            # Calculate alerts today
+            today_start = datetime.now().replace(hour=0, minute=0, second=0).timestamp()
+            alerts_today = 0
+            
+            servers = db_manager.execute_query("SELECT id FROM servers WHERE status = 'active'", fetch=True)
+            for (server_id,) in servers:
+                perm_db, file_db = get_server_databases(server_id)
+                if perm_db:
+                    alerts_today += count_records_in_db(perm_db, "permission_changes", today_start)
+                if file_db:
+                    alerts_today += count_records_in_db(file_db, "file_operations", today_start)
+            
+            restored_files = alerts_today // 2 if alerts_today > 0 else 0
+            
+            # Broadcast to all connected clients
+            await ws_manager.broadcast({
+                "type": "stats_update",
+                "data": {
+                    "totalServers": total_servers,
+                    "activeMonitors": active_monitors,
+                    "alertsToday": alerts_today,
+                    "restoredFiles": restored_files,
+                    "timestamp": datetime.now().isoformat()
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error broadcasting stats: {e}")
+        
+        # Wait 5 seconds before next update
+        await asyncio.sleep(5)
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on app startup"""
+    # Start the stats broadcast task
+    asyncio.create_task(broadcast_stats_update())
+    logger.info("Background tasks started")
 
 # ==================== Main ====================
 
