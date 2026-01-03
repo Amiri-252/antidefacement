@@ -3,6 +3,36 @@ import React, { useState } from 'react';
 import { Server, Globe, FolderOpen, Key, AlertCircle, CheckCircle } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
 
+// InputField component defined outside to prevent recreation on each render
+const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, required = false, error, value, onChange }) => (
+  <div className="mb-4">
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Icon className="h-5 w-5 text-gray-400" />
+      </div>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          error ? 'border-red-500' : 'border-gray-300'
+        }`}
+      />
+    </div>
+    {error && (
+      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+        <AlertCircle className="w-4 h-4" />
+        {error}
+      </p>
+    )}
+  </div>
+);
+
 const AddServerPage = ({ onNavigate }) => {
   const { addServer } = useDashboard();
   const [formData, setFormData] = useState({
@@ -71,10 +101,21 @@ const AddServerPage = ({ onNavigate }) => {
     setSuccess(false);
 
     try {
-      await addServer({
-        ...formData,
-        auth_method: authMethod,
-      });
+      // Map frontend field names to backend API field names
+      const serverData = {
+        name: formData.name,
+        host: formData.ip,
+        port: parseInt(formData.ssh_port, 10),
+        username: formData.ssh_user,
+        password: authMethod === 'password' ? formData.ssh_password : null,
+        key_path: authMethod === 'key' ? formData.ssh_key : null,
+        path: formData.path,
+        mode: formData.auto_restore ? 'active' : 'passive',
+        backup_path: null, // Can be added later if needed
+        interval: parseInt(formData.monitor_interval, 10) || 300,
+      };
+
+      await addServer(serverData);
 
       setSuccess(true);
       
@@ -101,35 +142,6 @@ const AddServerPage = ({ onNavigate }) => {
       setErrors(prev => ({ ...prev, [name]: null }));
     }
   };
-
-  const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, required = false, error }) => (
-    <div className="mb-4">
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Icon className="h-5 w-5 text-gray-400" />
-        </div>
-        <input
-          type={type}
-          name={name}
-          value={formData[name]}
-          onChange={handleChange}
-          placeholder={placeholder}
-          className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            error ? 'border-red-500' : 'border-gray-300'
-          }`}
-        />
-      </div>
-      {error && (
-        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-          <AlertCircle className="w-4 h-4" />
-          {error}
-        </p>
-      )}
-    </div>
-  );
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -179,6 +191,8 @@ const AddServerPage = ({ onNavigate }) => {
               placeholder="Production Server 1"
               required
               error={errors.name}
+              value={formData.name}
+              onChange={handleChange}
             />
 
             <InputField
@@ -188,6 +202,8 @@ const AddServerPage = ({ onNavigate }) => {
               placeholder="192.168.1.100"
               required
               error={errors.ip}
+              value={formData.ip}
+              onChange={handleChange}
             />
 
             <InputField
@@ -197,6 +213,8 @@ const AddServerPage = ({ onNavigate }) => {
               placeholder="/var/www/html"
               required
               error={errors.path}
+              value={formData.path}
+              onChange={handleChange}
             />
           </div>
 
@@ -216,6 +234,8 @@ const AddServerPage = ({ onNavigate }) => {
                 placeholder="22"
                 required
                 error={errors.ssh_port}
+                value={formData.ssh_port}
+                onChange={handleChange}
               />
 
               <InputField
@@ -225,6 +245,8 @@ const AddServerPage = ({ onNavigate }) => {
                 placeholder="root"
                 required
                 error={errors.ssh_user}
+                value={formData.ssh_user}
+                onChange={handleChange}
               />
             </div>
 
@@ -268,6 +290,8 @@ const AddServerPage = ({ onNavigate }) => {
                 placeholder="••••••••"
                 required
                 error={errors.ssh_password}
+                value={formData.ssh_password}
+                onChange={handleChange}
               />
             ) : (
               <div className="mb-4">
@@ -342,6 +366,8 @@ const AddServerPage = ({ onNavigate }) => {
               name="alert_email"
               type="email"
               placeholder="admin@example.com"
+              value={formData.alert_email}
+              onChange={handleChange}
             />
           </div>
 
