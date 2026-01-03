@@ -70,8 +70,9 @@ export const DashboardProvider = ({ children }) => {
       setServers(serversData);
       setRecentAlerts(alertsData.slice(0, 3));
 
-      // Get activity data from backend (for now, generate based on alerts)
-      // TODO: Add backend endpoint for activity chart data
+      // Activity chart data - currently showing zeros as placeholder
+      // Backend endpoint for historical activity trends needs to be implemented
+      // This will aggregate activity_logs by day for the chart visualization
       setActivityData([
         { name: 'Mon', fileChanges: 0, permChanges: 0, restores: 0 },
         { name: 'Tue', fileChanges: 0, permChanges: 0, restores: 0 },

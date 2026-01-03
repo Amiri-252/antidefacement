@@ -102,8 +102,9 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==================== Insert Default Admin User ====================
--- Default password: admin123 (change immediately after first login!)
--- This is the bcrypt hash of 'admin123'
+-- Default password: admin123 (CHANGE IMMEDIATELY AFTER FIRST LOGIN!)
+-- The bcrypt hash below corresponds to the password 'admin123'
+-- Generate new hash with: python -c "from bcrypt import hashpw, gensalt; print(hashpw(b'your_password', gensalt()).decode())"
 INSERT INTO users (username, email, full_name, hashed_password, role)
 VALUES (
     'admin',

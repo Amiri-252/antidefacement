@@ -648,6 +648,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def broadcast_stats_update():
     """Background task to broadcast stats updates periodically"""
     while True:
+        db = None
         try:
             from sqlalchemy import func
             # Get a database session for this task
@@ -661,9 +662,6 @@ async def broadcast_stats_update():
             today_start = datetime.now().replace(hour=0, minute=0, second=0).timestamp()
             alerts_today = count_activity_records(db, time_filter=today_start)
             restored_files = alerts_today // 2 if alerts_today > 0 else 0
-            
-            # Close the database session
-            db.close()
             
             # Broadcast to all connected clients
             await ws_manager.broadcast({
@@ -679,6 +677,10 @@ async def broadcast_stats_update():
             
         except Exception as e:
             logger.error(f"Error broadcasting stats: {e}")
+        finally:
+            # Always close the database session
+            if db:
+                db.close()
         
         # Wait 5 seconds before next update
         await asyncio.sleep(5)

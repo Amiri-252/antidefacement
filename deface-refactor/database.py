@@ -69,7 +69,7 @@ class Backup(Base):
     server_id = Column(Integer, nullable=False)
     server_name = Column(String(255), nullable=False)
     backup_path = Column(Text, nullable=False)
-    size_bytes = Column(BigInteger, default=0)
+    size_bytes = Column(BigInteger, default=0)  # Using BigInteger for large file sizes
     file_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default='completed')
@@ -94,9 +94,10 @@ class DatabaseManager:
                     "Format: mysql+pymysql://user:password@localhost:3306/antidefacement"
                 )
         
-        if "mysql" not in db_url:
+        # Check for MySQL-specific drivers
+        if not any(driver in db_url for driver in ['mysql+pymysql', 'mysql+mysqlconnector', 'mysql+mysqldb']):
             raise ValueError(
-                "Only MySQL database is supported. "
+                "Only MySQL database is supported with pymysql, mysqlconnector, or mysqldb drivers. "
                 "Please use format: mysql+pymysql://user:password@localhost:3306/antidefacement"
             )
         
