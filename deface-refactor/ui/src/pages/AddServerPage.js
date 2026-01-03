@@ -105,14 +105,14 @@ const AddServerPage = ({ onNavigate }) => {
       const serverData = {
         name: formData.name,
         host: formData.ip,
-        port: parseInt(formData.ssh_port),
+        port: parseInt(formData.ssh_port, 10),
         username: formData.ssh_user,
         password: authMethod === 'password' ? formData.ssh_password : null,
         key_path: authMethod === 'key' ? formData.ssh_key : null,
         path: formData.path,
         mode: formData.auto_restore ? 'active' : 'passive',
         backup_path: null, // Can be added later if needed
-        interval: parseInt(formData.monitor_interval) || 300,
+        interval: parseInt(formData.monitor_interval, 10) || 300,
       };
 
       await addServer(serverData);
