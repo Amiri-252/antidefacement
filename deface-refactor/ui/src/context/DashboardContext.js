@@ -70,15 +70,17 @@ export const DashboardProvider = ({ children }) => {
       setServers(serversData);
       setRecentAlerts(alertsData.slice(0, 3));
 
-      // Mock activity data - replace with real API call
+      // Activity chart data - currently showing zeros as placeholder
+      // Backend endpoint for historical activity trends needs to be implemented
+      // This will aggregate activity_logs by day for the chart visualization
       setActivityData([
-        { name: 'Mon', fileChanges: 12, permChanges: 8, restores: 5 },
-        { name: 'Tue', fileChanges: 19, permChanges: 12, restores: 8 },
-        { name: 'Wed', fileChanges: 15, permChanges: 10, restores: 6 },
-        { name: 'Thu', fileChanges: 25, permChanges: 15, restores: 10 },
-        { name: 'Fri', fileChanges: 22, permChanges: 13, restores: 9 },
-        { name: 'Sat', fileChanges: 18, permChanges: 11, restores: 7 },
-        { name: 'Sun', fileChanges: 15, permChanges: 9, restores: 6 },
+        { name: 'Mon', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Tue', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Wed', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Thu', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Fri', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Sat', fileChanges: 0, permChanges: 0, restores: 0 },
+        { name: 'Sun', fileChanges: 0, permChanges: 0, restores: 0 },
       ]);
     } catch (err) {
       setError(err.message);
@@ -109,6 +111,18 @@ export const DashboardProvider = ({ children }) => {
     }
   }, []);
 
+  const updateServerMode = useCallback(async (serverId, mode) => {
+    try {
+      await api.updateServerMode(serverId, mode);
+      setServers(prev => prev.map(s => 
+        s.id === serverId ? { ...s, mode } : s
+      ));
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
   const value = {
     servers,
     stats,
@@ -119,6 +133,7 @@ export const DashboardProvider = ({ children }) => {
     loadDashboardData,
     addServer,
     deleteServer,
+    updateServerMode,
   };
 
   return (

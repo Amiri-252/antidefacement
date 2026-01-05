@@ -1,10 +1,24 @@
 // frontend/src/pages/ServersPage.js
 import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Activity } from 'lucide-react';
 import { useDashboard } from '../context/DashboardContext';
 
-const ServerCard = ({ server, onDelete }) => {
+const ServerCard = ({ server, onDelete, onToggleMode }) => {
   const initials = server.name.substring(0, 2).toUpperCase();
+  const [togglingMode, setTogglingMode] = useState(false);
+
+  const handleToggleMode = async () => {
+    const newMode = server.mode === 'active' ? 'passive' : 'active';
+    setTogglingMode(true);
+    try {
+      await onToggleMode(server.id, newMode);
+    } catch (error) {
+      console.error('Failed to toggle mode:', error);
+      alert('Failed to update server mode. Please try again.');
+    } finally {
+      setTogglingMode(false);
+    }
+  };
 
   return (
     <div className="border-2 border-gray-200 rounded-lg p-5 hover:border-blue-500 transition-all flex justify-between items-center">
@@ -33,6 +47,19 @@ const ServerCard = ({ server, onDelete }) => {
           <div className="text-xs text-gray-600 uppercase">Alerts</div>
         </div>
         <button
+          onClick={handleToggleMode}
+          disabled={togglingMode}
+          className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors ${
+            server.mode === 'active'
+              ? 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-gray-600 text-white hover:bg-gray-700'
+          } ${togglingMode ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={`Currently: ${server.mode}. Click to toggle.`}
+        >
+          <Activity className="w-4 h-4" />
+          {togglingMode ? 'Updating...' : server.mode === 'active' ? 'Active' : 'Passive'}
+        </button>
+        <button
           onClick={() => onDelete(server.id)}
           className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 flex items-center gap-2 transition-colors"
         >
@@ -45,7 +72,7 @@ const ServerCard = ({ server, onDelete }) => {
 };
 
 const ServersPage = ({ onNavigate }) => {
-  const { servers, deleteServer } = useDashboard();
+  const { servers, deleteServer, updateServerMode } = useDashboard();
   const [deleting, setDeleting] = useState(null);
 
   const handleDelete = async (serverId) => {
@@ -62,6 +89,10 @@ const ServersPage = ({ onNavigate }) => {
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleToggleMode = async (serverId, newMode) => {
+    await updateServerMode(serverId, newMode);
   };
 
   return (
@@ -88,6 +119,7 @@ const ServersPage = ({ onNavigate }) => {
               key={server.id}
               server={server}
               onDelete={handleDelete}
+              onToggleMode={handleToggleMode}
             />
           ))
         )}

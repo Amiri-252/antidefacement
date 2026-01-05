@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Database module supporting both SQLite and MySQL
+Database module - MySQL only for production use
 """
 
 import os
 from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean, Float
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, Boolean, Float, BigInteger
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
@@ -69,32 +69,45 @@ class Backup(Base):
     server_id = Column(Integer, nullable=False)
     server_name = Column(String(255), nullable=False)
     backup_path = Column(Text, nullable=False)
-    size_bytes = Column(Integer, default=0)
+    size_bytes = Column(BigInteger, default=0)  # Using BigInteger for large file sizes
     file_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default='completed')
 
 
 class DatabaseManager:
-    """Database manager supporting both SQLite and MySQL"""
+    """Database manager - MySQL only for production"""
     
     def __init__(self, db_url: Optional[str] = None):
         """
         Initialize database connection
         
         Args:
-            db_url: Database URL. Format:
-                - SQLite: "sqlite:///antidefacement.db"
+            db_url: MySQL Database URL. Format:
                 - MySQL: "mysql+pymysql://user:password@localhost:3306/antidefacement"
         """
         if db_url is None:
-            # Default to SQLite for backward compatibility
-            db_url = os.getenv("DATABASE_URL", "sqlite:///antidefacement.db")
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                raise ValueError(
+                    "DATABASE_URL environment variable is required. "
+                    "Format: mysql+pymysql://user:password@localhost:3306/antidefacement"
+                )
+        
+        # Check for MySQL-specific drivers
+        if not any(driver in db_url for driver in ['mysql+pymysql', 'mysql+mysqlconnector', 'mysql+mysqldb']):
+            raise ValueError(
+                "Only MySQL database is supported with pymysql, mysqlconnector, or mysqldb drivers. "
+                "Please use format: mysql+pymysql://user:password@localhost:3306/antidefacement"
+            )
         
         self.db_url = db_url
         self.engine = create_engine(
             db_url,
             pool_pre_ping=True,
+            pool_recycle=3600,
+            pool_size=10,
+            max_overflow=20,
             echo=False
         )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
@@ -102,16 +115,11 @@ class DatabaseManager:
         # Create all tables
         self._create_tables()
         
-        logging.info(f"Database initialized: {self._get_db_type()}")
+        logging.info("Database initialized: MySQL")
     
     def _get_db_type(self) -> str:
         """Get database type from URL"""
-        if "mysql" in self.db_url:
-            return "MySQL"
-        elif "sqlite" in self.db_url:
-            return "SQLite"
-        else:
-            return "Unknown"
+        return "MySQL"
     
     def _create_tables(self):
         """Create all database tables"""

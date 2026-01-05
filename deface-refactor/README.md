@@ -38,16 +38,23 @@ A comprehensive web-based monitoring system for detecting and preventing file sy
   - **General settings** (monitoring, Redis)
 
 ### 🗄️ Database
-- **Flexible database support**: SQLite (dev) or MySQL (production)
-- **SQLAlchemy ORM**: Clean database operations
-- **Activity logging**: All events stored in centralized database
-- **Easy migration**: Tools and guides for moving to MySQL
+- **Production-ready MySQL**: Required database for all deployments
+- **SQLAlchemy ORM**: Clean database operations with proper relationships
+- **Centralized Activity Logging**: All events in single `activity_logs` table
+- **Database Initialization Script**: Easy setup with `init_database.sql`
+- **Optimized Performance**: Connection pooling and proper indexing
+
+### 🔄 Monitoring Modes
+- **Active Mode**: Real-time monitoring with automatic file restoration
+- **Passive Mode**: Monitoring and alerting without automatic changes
+- **UI Toggle**: Easy switch between modes per server
+- **Visual Indicators**: Color-coded mode display on server cards
 
 ## Architecture
 
 ### Backend (FastAPI)
 - RESTful API with JWT authentication
-- SQLite or MySQL database support for data persistence
+- MySQL database with centralized activity logging
 - WebSocket support for real-time updates
 - RBAC middleware for endpoint protection
 - Modular architecture for easy extension
@@ -59,6 +66,7 @@ A comprehensive web-based monitoring system for detecting and preventing file sy
 - Secure token storage
 - Protected routes
 - Role-based component rendering
+- Active/Passive monitoring toggle per server
 
 ## Installation
 
@@ -66,31 +74,41 @@ A comprehensive web-based monitoring system for detecting and preventing file sy
 - Python 3.8+
 - Node.js 18+
 - npm 9+
-- MySQL 5.7+ (optional, recommended for production)
+- **MySQL 5.7+ (REQUIRED)**
+
+### Quick Start
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for comprehensive step-by-step instructions.
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
+1. **Set up MySQL Database:**
+```bash
+# Create database and initialize schema
+mysql -u root -p < init_database.sql
+```
+
+2. Navigate to the backend directory:
 ```bash
 cd deface-refactor
 ```
 
-2. Install Python dependencies:
+3. Install Python dependencies:
 ```bash
 pip install -r requirements_complete.txt
 ```
 
-3. Create environment configuration:
+4. Create environment configuration:
 ```bash
 cp .env.example .env
 # Edit .env and configure:
-# - SECRET_KEY: Generate a strong random key
-# - DATABASE_URL: Choose SQLite (default) or MySQL
+# - SECRET_KEY: Generate a strong random key (use: python -c "import secrets; print(secrets.token_urlsafe(32))")
+# - DATABASE_URL: mysql+pymysql://user:password@localhost:3306/antidefacement
 ```
 
-**For MySQL setup**, see [MYSQL_SETUP.md](MYSQL_SETUP.md) for detailed instructions.
+**For detailed MySQL setup**, see [MYSQL_SETUP.md](MYSQL_SETUP.md).
 
-4. Start the API server:
+5. Start the API server:
 ```bash
 uvicorn api:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -187,14 +205,48 @@ The UI will be available at `http://localhost:5173`
 - `GET /api/settings/general` - Get general settings
 - `PUT /api/settings/general` - Update general settings (admin only)
 
+### Server Monitoring
+- `PUT /api/servers/{id}/mode` - Update server mode (active/passive) (operator+)
+
+## Monitoring Modes
+
+### Active Mode
+- **Real-time monitoring** with automatic file restoration
+- Continuously monitors file changes
+- Automatically restores modified files from backup
+- Best for **production environments**
+- Requires backup path configuration
+- Provides maximum protection
+
+### Passive Mode
+- **Monitoring and alerting only**
+- Logs all file changes and permission modifications
+- Sends alerts without modifying files
+- Best for **development/staging environments**
+- Good for initial testing and observation
+- Lower resource usage
+
+### Switching Modes
+- Toggle mode from UI server card (green button = active, gray = passive)
+- Use API endpoint: `PUT /api/servers/{id}/mode`
+- Changes take effect immediately
+- Mode persists across restarts
+
 ## Security Best Practices
 
 1. **Change Default Credentials**: Immediately change the default admin password
-2. **Secret Key**: Use a strong, random SECRET_KEY in production
-3. **HTTPS**: Always use HTTPS in production
-4. **CORS**: Configure CORS to allow only trusted domains
+2. **Secret Key**: Use a strong, random SECRET_KEY in production (`python -c "import secrets; print(secrets.token_urlsafe(32))"`)
+3. **HTTPS**: Always use HTTPS in production (configure nginx or Apache as reverse proxy)
+4. **CORS**: Configure CORS to allow only trusted domains in .env
 5. **Token Expiry**: Tokens expire after 24 hours by default
-6. **Database Backups**: Regularly backup the SQLite database
+6. **Database Security**: 
+   - Use strong database passwords
+   - Limit database user privileges
+   - Enable MySQL SSL connections in production
+7. **Firewall**: Restrict access to MySQL (port 3306) and API (port 8000) ports
+8. **Regular Backups**: Regularly backup the MySQL database
+9. **SSH Keys**: Use SSH keys instead of passwords for server monitoring
+10. **Network Security**: Run on a secure, isolated network when possible
 
 ## Development
 
@@ -202,17 +254,22 @@ The UI will be available at `http://localhost:5173`
 
 ```
 deface-refactor/
-├── api.py              # Main FastAPI application
-├── auth.py             # Authentication & RBAC module
-├── core/               # Core monitoring modules
-├── ui/                 # React frontend
+├── api.py                  # Main FastAPI application
+├── auth.py                 # Authentication & RBAC module
+├── database.py             # MySQL database models and ORM
+├── init_database.sql       # Database initialization script
+├── core/                   # Core monitoring modules
+├── ui/                     # React frontend
 │   ├── src/
-│   │   ├── components/ # UI components
-│   │   ├── context/    # React contexts (Auth, Dashboard)
-│   │   ├── pages/      # Page components
-│   │   └── services/   # API service layer
+│   │   ├── components/     # UI components
+│   │   ├── context/        # React contexts (Auth, Dashboard)
+│   │   ├── pages/          # Page components
+│   │   └── services/       # API service layer (real backend integration)
 ├── requirements_complete.txt
-└── .env.example
+├── .env.example
+├── SETUP_GUIDE.md          # Detailed setup instructions
+├── CHANGES_SUMMARY.md      # Summary of recent changes
+└── MYSQL_SETUP.md          # MySQL-specific setup guide
 ```
 
 ### Frontend Development
@@ -242,15 +299,27 @@ black .
 ### CORS Errors
 - Ensure frontend URL is in CORS_ORIGINS in backend .env
 - Check browser console for specific CORS errors
+- Default: `CORS_ORIGINS=http://localhost:3000,http://localhost:5173`
 
 ### Authentication Issues
 - Clear browser localStorage and try again
-- Check if backend is running and accessible
-- Verify token hasn't expired
+- Check if backend is running and accessible at http://localhost:8000
+- Verify token hasn't expired (24 hour default)
+- Check backend logs for authentication errors
 
 ### Database Issues
-- Delete antidefacement.db to reset database
-- Check file permissions on database file
+- **Connection Error**: Check MySQL is running: `sudo systemctl status mysql`
+- **Access Denied**: Verify DATABASE_URL credentials in .env
+- **Missing Tables**: Run `mysql -u antidef_user -p antidefacement < init_database.sql`
+- **Slow Queries**: Check MySQL slow query log
+- **Connection Pool Exhausted**: Increase pool_size in database.py
+
+### Server Monitoring Issues  
+- **SSH Connection Failed**: Verify credentials, firewall rules, SSH port
+- **Permission Denied**: Check SSH key permissions (chmod 600)
+- **Mode Toggle Not Working**: Check backend logs, verify API endpoint is accessible
+
+For detailed troubleshooting, see [SETUP_GUIDE.md](SETUP_GUIDE.md#troubleshooting)
 
 ## Contributing
 
